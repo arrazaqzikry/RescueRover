@@ -32,15 +32,15 @@ export const ConfigPanel: React.FC<Props> = ({ config, onChange, onClose }) => {
             onChange={v => update('droneCount', v)}
           />
           <ConfigSlider
-            label="SURVIVORS"
-            value={config.totalSurvivors}
-            min={1} max={10}
-            onChange={v => update('totalSurvivors', v)}
+            label="GRID SIZE"
+            value={config.gridSize}
+            min={10} max={30}
+            onChange={v => update('gridSize', v)}
           />
           <ConfigSlider
             label="OBSTACLES"
             value={config.obstacleCount}
-            min={0} max={30}
+            min={0} max={40}
             onChange={v => update('obstacleCount', v)}
           />
           <ConfigSlider
@@ -52,9 +52,15 @@ export const ConfigPanel: React.FC<Props> = ({ config, onChange, onClose }) => {
           <ConfigSlider
             label="TICK SPEED (ms)"
             value={config.tickIntervalMs}
-            min={300} max={3000} step={100}
+            min={200} max={3000} step={100}
             onChange={v => update('tickIntervalMs', v)}
           />
+        </div>
+
+        <div className="mt-3 p-2 bg-secondary/40 rounded border border-border/40">
+          <p className="font-mono text-[9px] text-muted-foreground leading-relaxed">
+            ℹ Survivor count is randomised (8–15) at each reset — unknown until discovered.
+          </p>
         </div>
 
         <button

@@ -14,7 +14,7 @@ import { ConfigPanel } from '../components/ConfigPanel';
 
 const DEFAULT_CONFIG: SimulationConfig = {
   gridSize: 20,
-  totalSurvivors: 5,
+  totalSurvivors: 10,   // overridden at init to random 8-15
   maxDrones: 10,
   droneCount: 3,
   obstacleCount: 15,
@@ -30,7 +30,7 @@ const Index: React.FC = () => {
 
   // ── Tick loop ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (state.running && !state.stats.missionComplete) {
+    if (state.running) {
       tickRef.current = setInterval(() => {
         setState(prev => commandAgentTick(prev));
       }, config.tickIntervalMs);
@@ -38,7 +38,7 @@ const Index: React.FC = () => {
       if (tickRef.current) clearInterval(tickRef.current);
     }
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
-  }, [state.running, state.stats.missionComplete, config.tickIntervalMs]);
+  }, [state.running, config.tickIntervalMs]);
 
   // ── Controls ──────────────────────────────────────────────────────────────
   const handleStart = useCallback(() => {
@@ -67,6 +67,17 @@ const Index: React.FC = () => {
 
   const handleSelectDrone = useCallback((id: string | null) => {
     setState(prev => ({ ...prev, selectedDroneId: id }));
+  }, []);
+
+  // ── Manual RTB override ───────────────────────────────────────────────────
+  const handleReturnToBase = useCallback((droneId: string) => {
+    setState(prev => {
+      const idx = prev.drones.findIndex(d => d.id === droneId);
+      if (idx === -1) return prev;
+      const updatedDrones = [...prev.drones];
+      updatedDrones[idx] = { ...updatedDrones[idx], forceReturn: true };
+      return { ...prev, drones: updatedDrones };
+    });
   }, []);
 
   const handleConfigChange = useCallback((newConfig: SimulationConfig) => {
@@ -100,12 +111,12 @@ const Index: React.FC = () => {
           {/* Grid panel header */}
           <div className="flex items-center justify-between px-4 py-1.5 border-b border-border/50 bg-card/50 shrink-0">
             <span className="font-mono text-[10px] text-muted-foreground tracking-widest">
-              ZONE MAP — 20×20
+              ZONE MAP — {state.config.gridSize}×{state.config.gridSize}
             </span>
             <div className="flex items-center gap-3">
               <Legend color="hsl(220,20%,92%)" label="Unexplored" />
               <Legend color="hsl(196,80%,88%)" border label="Visited" />
-              <Legend color="#10B981" label="Survivor" />
+              <Legend color="#E91E8C" label="Survivor" />
               <Legend color="#EF4444" label="Obstacle" />
               <button
                 onClick={() => setShowConfig(true)}
@@ -130,7 +141,7 @@ const Index: React.FC = () => {
           </div>
 
           {/* Bottom — Activity Log */}
-          <div className="h-40 border-t border-border shrink-0">
+          <div className="h-44 border-t border-border shrink-0">
             <ActivityLog entries={state.log} />
           </div>
         </div>
@@ -160,9 +171,9 @@ const Index: React.FC = () => {
               color={state.stats.coverage >= 80 ? '#10B981' : state.stats.coverage >= 40 ? '#F59E0B' : undefined}
             />
             <StatTile
-              label="SURVIVORS"
+              label="SURVIVORS FOUND"
               value={`${state.stats.survivorsFound}`}
-              sub={`/ ${state.stats.totalSurvivors} detected`}
+              sub={`/ ${state.stats.totalSurvivors} total`}
               color={state.stats.survivorsFound === state.stats.totalSurvivors ? '#10B981' : undefined}
             />
             <StatTile
@@ -177,6 +188,7 @@ const Index: React.FC = () => {
             drones={state.drones}
             selectedId={state.selectedDroneId}
             onSelect={handleSelectDrone}
+            onReturnToBase={handleReturnToBase}
           />
 
           {/* Selected drone detail */}
@@ -239,7 +251,7 @@ const SelectedDroneDetail: React.FC<{ drone: Drone | undefined }> = ({ drone }) 
       </div>
       <div className="grid grid-cols-2 gap-2">
         <MiniStat2 label="POSITION" value={`(${drone.position.x}, ${drone.position.y})`} />
-        <MiniStat2 label="BATTERY" value={`${drone.battery}%`} />
+        <MiniStat2 label="BATTERY" value={`${Math.round(drone.battery)}%`} />
         <MiniStat2 label="SECTOR" value={['NW','NE','SW','SE'][drone.sector % 4]} />
         <MiniStat2 label="DETECTIONS" value={String(drone.detectedSurvivorIds.length)} />
       </div>
