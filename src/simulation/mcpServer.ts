@@ -13,9 +13,14 @@ import {
 const GRID = 20;
 const BASE: Position = { x: 0, y: 0 };
 
+// Battery drain per move step — very low so drones can cover the full grid
+const BATTERY_DRAIN_PER_STEP = 0.5;   // 0.5% per move step
+const BATTERY_DRAIN_PER_SCAN = 0.2;   // 0.2% per scan
+
 const DRONE_COLORS = [
   'drone-navigating', 'drone-scanning', 'drone-returning',
-  'drone-idle', 'drone-charging', 'rescue-green', 'alert-amber', 'drone-idle'
+  'drone-idle', 'drone-charging', 'rescue-green', 'alert-amber', 'drone-idle',
+  'drone-navigating', 'drone-scanning',
 ];
 
 // ─── Utility helpers ────────────────────────────────────────────────────────
@@ -107,7 +112,7 @@ export function createInitialState(config: SimulationConfig): SimulationState {
   };
 }
 
-function makeDrone(index: number, total: number): Drone {
+function makeDrone(index: number, _total: number): Drone {
   const num = String(index + 1).padStart(2, '0');
   return {
     id: `UAV-${num}`,
@@ -167,7 +172,7 @@ export function mcp_getBattery(state: SimulationState, droneId: string) {
   return { drone_id: d.id, battery: d.battery, status: d.status };
 }
 
-/** POST /move_to */
+/** POST /move_to — with collision prevention */
 export function mcp_moveTo(
   state: SimulationState,
   req: MCPMoveRequest
@@ -186,10 +191,19 @@ export function mcp_moveTo(
     return { state, success: false, message: 'Obstacle at target' };
   }
 
-  // Drain battery proportionally to distance
-  const d = dist(drone.position, { x: tx, y: ty });
-  const drain = Math.min(d * 2, drone.battery);
-  const newBattery = Math.max(0, drone.battery - drain);
+  // ── Collision prevention: block if another drone is already at target ──
+  const isBase = tx === BASE.x && ty === BASE.y;
+  if (!isBase) {
+    const occupiedByOther = state.drones.some(
+      d => d.id !== req.drone_id && d.position.x === tx && d.position.y === ty
+    );
+    if (occupiedByOther) {
+      return { state, success: false, message: 'Cell occupied by another drone' };
+    }
+  }
+
+  // Drain a small flat amount per step — independent of distance
+  const newBattery = Math.max(0, drone.battery - BATTERY_DRAIN_PER_STEP);
 
   const newStatus: DroneStatus =
     tx === BASE.x && ty === BASE.y ? 'charging' :
@@ -259,17 +273,22 @@ export function mcp_thermalScan(
     updatedDrone = { ...updatedDrone, cellsScanned: updatedDrone.cellsScanned + 1, status: 'scanning' };
   }
 
-  // Drain small amount for scan
-  updatedDrone = { ...updatedDrone, battery: Math.max(0, updatedDrone.battery - 1) };
+  // Drain minimal amount for scan
+  updatedDrone = { ...updatedDrone, battery: Math.max(0, updatedDrone.battery - BATTERY_DRAIN_PER_SCAN) };
 
   const newDrones = [...state.drones];
   newDrones[idx] = updatedDrone;
 
-  // Recalculate coverage
+  // Recalculate coverage (exclude obstacles from total)
   const totalCells = state.config.gridSize * state.config.gridSize;
   const scannedCells = newGrid.flat().filter(c => c.scanned).length;
   const coverage = Math.round((scannedCells / totalCells) * 100);
   const survivorsFound = newSurvivors.filter(s => s.detected).length;
+
+  // Mission complete = ALL non-obstacle cells scanned
+  const totalScannable = newGrid.flat().filter(c => !c.hasObstacle).length;
+  const totalScannedNonObstacle = newGrid.flat().filter(c => c.scanned && !c.hasObstacle).length;
+  const allCellsVisited = totalScannedNonObstacle >= totalScannable;
 
   const newState: SimulationState = {
     ...state,
@@ -280,7 +299,7 @@ export function mcp_thermalScan(
       ...state.stats,
       coverage,
       survivorsFound,
-      missionComplete: survivorsFound >= state.config.totalSurvivors,
+      missionComplete: allCellsVisited,
     },
   };
 
@@ -335,7 +354,7 @@ export function planPath(
       queue.push({ pos: np, path: newPath });
     }
   }
-  return []; // unreachable
+  return [];
 }
 
 // ─── Sector helpers ──────────────────────────────────────────────────────────
@@ -343,10 +362,10 @@ export function planPath(
 export function getSectorBounds(sector: number, size: number): { minX: number; maxX: number; minY: number; maxY: number } {
   const half = Math.floor(size / 2);
   switch (sector % 4) {
-    case 0: return { minX: 0, maxX: half - 1, minY: 0, maxY: half - 1 };         // NW
-    case 1: return { minX: half, maxX: size - 1, minY: 0, maxY: half - 1 };       // NE
-    case 2: return { minX: 0, maxX: half - 1, minY: half, maxY: size - 1 };       // SW
-    case 3: return { minX: half, maxX: size - 1, minY: half, maxY: size - 1 };    // SE
+    case 0: return { minX: 0, maxX: half - 1, minY: 0, maxY: half - 1 };
+    case 1: return { minX: half, maxX: size - 1, minY: 0, maxY: half - 1 };
+    case 2: return { minX: 0, maxX: half - 1, minY: half, maxY: size - 1 };
+    case 3: return { minX: half, maxX: size - 1, minY: half, maxY: size - 1 };
     default: return { minX: 0, maxX: size - 1, minY: 0, maxY: size - 1 };
   }
 }
@@ -360,20 +379,23 @@ export function findBestTarget(
   const { battery } = drone;
   const size = config.gridSize;
 
-  // Calculate range based on battery — low battery stays close
-  const maxRange = battery > 50 ? size : Math.floor((battery / 100) * size * 1.5);
+  // Battery threshold: recall only at 25%
+  const maxRange = battery > 50 ? size * 2 : size;
 
-  // Sector bounds (with battery-based adjustment)
   const sb = getSectorBounds(drone.sector, size);
   const effectiveBounds = battery <= 25
-    ? { minX: 0, maxX: 4, minY: 0, maxY: 4 }  // near-base when low
+    ? { minX: 0, maxX: 4, minY: 0, maxY: 4 }
     : sb;
 
-  // Cells occupied by other drones' queues (avoid overlap)
-  const claimedCells = new Set<string>();
+  // Cells occupied by other drones' current positions (avoid collocating)
+  const occupiedByDrones = new Set<string>();
   allDrones.forEach(d => {
     if (d.id !== drone.id) {
-      d.pathQueue.forEach(p => claimedCells.add(posKey(p)));
+      occupiedByDrones.add(posKey(d.position));
+      // Also avoid the first step of other drones' paths to reduce collisions
+      if (d.pathQueue.length > 0) {
+        occupiedByDrones.add(posKey(d.pathQueue[0]));
+      }
     }
   });
 
@@ -384,13 +406,12 @@ export function findBestTarget(
     for (let gx = effectiveBounds.minX; gx <= effectiveBounds.maxX; gx++) {
       if (grid[gy][gx].scanned) continue;
       if (grid[gy][gx].hasObstacle) continue;
-      if (claimedCells.has(posKey({ x: gx, y: gy }))) continue;
+      if (occupiedByDrones.has(posKey({ x: gx, y: gy }))) continue;
 
       const d = dist(drone.position, { x: gx, y: gy });
       if (d > maxRange) continue;
 
-      // Score: prefer nearby unscanned cells; penalize far ones
-      const score = d + (Math.random() * 0.5); // small random tie-break
+      const score = d + (Math.random() * 0.5);
       if (score < bestScore) {
         bestScore = score;
         bestCell = { x: gx, y: gy };
@@ -398,13 +419,13 @@ export function findBestTarget(
     }
   }
 
-  // If sector is fully covered, expand to any unscanned cell in range
+  // If sector is fully covered, expand to any unscanned cell
   if (!bestCell) {
     for (let gy = 0; gy < size; gy++) {
       for (let gx = 0; gx < size; gx++) {
         if (grid[gy][gx].scanned) continue;
         if (grid[gy][gx].hasObstacle) continue;
-        if (claimedCells.has(posKey({ x: gx, y: gy }))) continue;
+        if (occupiedByDrones.has(posKey({ x: gx, y: gy }))) continue;
         const d = dist(drone.position, { x: gx, y: gy });
         if (d > maxRange) continue;
         const score = d + (Math.random() * 0.5);
