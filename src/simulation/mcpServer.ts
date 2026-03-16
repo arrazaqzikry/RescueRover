@@ -4,18 +4,17 @@
 // ===================================================
 
 import {
-  Drone, DroneStatus, GridCell, LogEntry, MCPDroneResponse,
+  Drone, DroneStatus, GridCell, MCPDroneResponse,
   MCPMoveRequest, MCPRegisterRequest, MCPScanResponse,
   MCPThermalScanRequest, Obstacle, Position, SimulationConfig,
   SimulationState, Survivor,
 } from '../types/simulation';
 
-const GRID = 20;
 const BASE: Position = { x: 0, y: 0 };
 
 // Battery drain per move step — very low so drones can cover the full grid
-const BATTERY_DRAIN_PER_STEP = 0.5;   // 0.5% per move step
-const BATTERY_DRAIN_PER_SCAN = 0.2;   // 0.2% per scan
+const BATTERY_DRAIN_PER_STEP = 0.4;   // 0.4% per move step
+const BATTERY_DRAIN_PER_SCAN = 0.15;  // 0.15% per scan
 
 const DRONE_COLORS = [
   'drone-navigating', 'drone-scanning', 'drone-returning',
@@ -37,10 +36,10 @@ function dist(a: Position, b: Position): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
-function randomPos(grid: GridCell[][], exclude: Set<string>): Position {
+function randomPos(grid: GridCell[][], exclude: Set<string>, size: number): Position {
   let p: Position;
   do {
-    p = { x: Math.floor(Math.random() * GRID), y: Math.floor(Math.random() * GRID) };
+    p = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
   } while (exclude.has(posKey(p)) || grid[p.y][p.x].hasObstacle);
   return p;
 }
@@ -60,23 +59,27 @@ export function initGrid(size: number): GridCell[][] {
 // ─── State factory ──────────────────────────────────────────────────────────
 
 export function createInitialState(config: SimulationConfig): SimulationState {
-  const grid = initGrid(config.gridSize);
+  const size = config.gridSize;
+  const grid = initGrid(size);
 
   // Place obstacles (avoid base)
   const usedPositions = new Set<string>([posKey(BASE)]);
   const obstacles: Obstacle[] = [];
   for (let i = 0; i < config.obstacleCount; i++) {
-    const p = randomPos(grid, usedPositions);
+    const p = randomPos(grid, usedPositions, size);
     grid[p.y][p.x].hasObstacle = true;
     obstacles.push({ position: p });
     usedPositions.add(posKey(p));
   }
 
+  // Randomise survivor count between 8 and 15 (unknown to user until discovered)
+  const survivorCount = 8 + Math.floor(Math.random() * 8); // 8-15
+
   // Place survivors (avoid base + obstacles)
   const survivors: Survivor[] = [];
-  for (let i = 0; i < config.totalSurvivors; i++) {
-    const p = randomPos(grid, usedPositions);
-    const id = `S${i + 1}`;
+  for (let i = 0; i < survivorCount; i++) {
+    const p = randomPos(grid, usedPositions, size);
+    const id = `#${i + 1}`;
     survivors.push({ id, position: p, detected: false });
     grid[p.y][p.x].survivorId = id;
     usedPositions.add(posKey(p));
@@ -92,7 +95,7 @@ export function createInitialState(config: SimulationConfig): SimulationState {
   }
 
   return {
-    config,
+    config: { ...config, totalSurvivors: survivorCount },
     grid,
     drones,
     survivors,
@@ -101,7 +104,7 @@ export function createInitialState(config: SimulationConfig): SimulationState {
       tick: 0,
       coverage: 0,
       survivorsFound: 0,
-      totalSurvivors: config.totalSurvivors,
+      totalSurvivors: survivorCount,
       dronesDeployed: config.droneCount,
       missionComplete: false,
       missionStartTime: Date.now(),
@@ -125,6 +128,7 @@ function makeDrone(index: number, _total: number): Drone {
     pathQueue: [],
     cellsScanned: 0,
     color: DRONE_COLORS[index % DRONE_COLORS.length],
+    forceReturn: false,
   };
 }
 
@@ -151,6 +155,7 @@ export function mcp_registerDrone(
     pathQueue: [],
     cellsScanned: 0,
     color: DRONE_COLORS[idx % DRONE_COLORS.length],
+    forceReturn: false,
   };
   const newState = {
     ...state,
@@ -184,8 +189,9 @@ export function mcp_moveTo(
   if (drone.battery <= 0) return { state, success: false, message: 'No battery' };
   if (drone.status === 'charging') return { state, success: false, message: 'Charging' };
 
-  const tx = Math.max(0, Math.min(GRID - 1, req.x));
-  const ty = Math.max(0, Math.min(GRID - 1, req.y));
+  const size = state.config.gridSize;
+  const tx = Math.max(0, Math.min(size - 1, req.x));
+  const ty = Math.max(0, Math.min(size - 1, req.y));
 
   if (state.grid[ty][tx].hasObstacle) {
     return { state, success: false, message: 'Obstacle at target' };
@@ -202,7 +208,6 @@ export function mcp_moveTo(
     }
   }
 
-  // Drain a small flat amount per step — independent of distance
   const newBattery = Math.max(0, drone.battery - BATTERY_DRAIN_PER_STEP);
 
   const newStatus: DroneStatus =
@@ -279,7 +284,7 @@ export function mcp_thermalScan(
   const newDrones = [...state.drones];
   newDrones[idx] = updatedDrone;
 
-  // Recalculate coverage (exclude obstacles from total)
+  // Recalculate coverage
   const totalCells = state.config.gridSize * state.config.gridSize;
   const scannedCells = newGrid.flat().filter(c => c.scanned).length;
   const coverage = Math.round((scannedCells / totalCells) * 100);
@@ -379,7 +384,6 @@ export function findBestTarget(
   const { battery } = drone;
   const size = config.gridSize;
 
-  // Battery threshold: recall only at 25%
   const maxRange = battery > 50 ? size * 2 : size;
 
   const sb = getSectorBounds(drone.sector, size);
@@ -392,7 +396,6 @@ export function findBestTarget(
   allDrones.forEach(d => {
     if (d.id !== drone.id) {
       occupiedByDrones.add(posKey(d.position));
-      // Also avoid the first step of other drones' paths to reduce collisions
       if (d.pathQueue.length > 0) {
         occupiedByDrones.add(posKey(d.pathQueue[0]));
       }

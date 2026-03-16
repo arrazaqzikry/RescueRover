@@ -1,9 +1,9 @@
 // ===================================================
-// components/SimulationGrid.tsx — 20×20 tactical grid
+// components/SimulationGrid.tsx — tactical grid
 // ===================================================
 
 import React from 'react';
-import { GridCell, Drone, Survivor, Obstacle, Position } from '../types/simulation';
+import { GridCell, Drone, Survivor, Obstacle } from '../types/simulation';
 
 interface Props {
   grid: GridCell[][];
@@ -31,6 +31,11 @@ const STATUS_BORDER: Record<string, string> = {
   charging:    '#7C3AED',
 };
 
+// Unique hot-pink/magenta for survivors — clearly distinct from all other elements
+const SURVIVOR_BG = '#E91E8C';
+const SURVIVOR_BORDER = '#C2185B';
+const SURVIVOR_TEXT = '#fff';
+
 export const SimulationGrid: React.FC<Props> = ({
   grid, drones, survivors, obstacles, selectedDroneId, onSelectDrone, gridSize
 }) => {
@@ -44,7 +49,8 @@ export const SimulationGrid: React.FC<Props> = ({
     selectedDrone.pathQueue.forEach(p => pathSet.add(`${p.x},${p.y}`));
   }
 
-  const CELL_SIZE = Math.floor(580 / gridSize);
+  // Scale cell size to fit grid — smaller for larger grids
+  const CELL_SIZE = Math.max(16, Math.floor(560 / gridSize));
 
   return (
     <div
@@ -82,7 +88,6 @@ export const SimulationGrid: React.FC<Props> = ({
           const isScanning = drone?.status === 'scanning';
 
           // ── Cell background colour ──
-          // Unscanned: light slate | Scanned: distinct teal-tinted blue | Obstacle: dark
           let bg: string;
           if (cell.hasObstacle) {
             bg = '#3B1C1C';
@@ -91,9 +96,9 @@ export const SimulationGrid: React.FC<Props> = ({
           } else if (isPath) {
             bg = 'rgba(34,211,238,0.18)';
           } else if (cell.scanned) {
-            bg = 'hsl(196 80% 88%)'; // distinct teal-blue tint for visited cells
+            bg = 'hsl(196 80% 88%)';
           } else {
-            bg = 'hsl(220 20% 92%)'; // light slate for unexplored
+            bg = 'hsl(220 20% 92%)';
           }
 
           return (
@@ -134,22 +139,24 @@ export const SimulationGrid: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Detected survivor */}
+              {/* Detected survivor — hot pink/magenta cross marker */}
               {survivor && !drone && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div
                     className="survivor-glow rounded-full flex items-center justify-center"
                     style={{
-                      width: CELL_SIZE * 0.7,
-                      height: CELL_SIZE * 0.7,
-                      backgroundColor: '#10B981',
-                      fontSize: CELL_SIZE * 0.32,
-                      fontWeight: 700,
-                      color: '#fff',
+                      width: CELL_SIZE * 0.72,
+                      height: CELL_SIZE * 0.72,
+                      backgroundColor: SURVIVOR_BG,
+                      border: `2px solid ${SURVIVOR_BORDER}`,
+                      fontSize: CELL_SIZE * 0.34,
+                      fontWeight: 900,
+                      color: SURVIVOR_TEXT,
                       fontFamily: 'JetBrains Mono, monospace',
+                      boxShadow: `0 0 6px ${SURVIVOR_BG}80`,
                     }}
                   >
-                    {survivor.id}
+                    ✚
                   </div>
                 </div>
               )}

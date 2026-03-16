@@ -9,6 +9,7 @@ interface Props {
   drones: Drone[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  onReturnToBase: (id: string) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -33,7 +34,7 @@ const BATTERY_COLOR = (bat: number): string => {
   return '#EF4444';
 };
 
-export const DroneFleet: React.FC<Props> = ({ drones, selectedId, onSelect }) => {
+export const DroneFleet: React.FC<Props> = ({ drones, selectedId, onSelect, onReturnToBase }) => {
   return (
     <div className="flex flex-col gap-1.5 overflow-y-auto terminal-scroll flex-1 p-2">
       {drones.length === 0 && (
@@ -47,18 +48,24 @@ export const DroneFleet: React.FC<Props> = ({ drones, selectedId, onSelect }) =>
           drone={drone}
           selected={drone.id === selectedId}
           onSelect={() => onSelect(drone.id === selectedId ? null : drone.id)}
+          onReturnToBase={() => onReturnToBase(drone.id)}
         />
       ))}
     </div>
   );
 };
 
-const DroneCard: React.FC<{ drone: Drone; selected: boolean; onSelect: () => void }> = ({
-  drone, selected, onSelect
-}) => {
+const DroneCard: React.FC<{
+  drone: Drone;
+  selected: boolean;
+  onSelect: () => void;
+  onReturnToBase: () => void;
+}> = ({ drone, selected, onSelect, onReturnToBase }) => {
   const isScanning = drone.status === 'scanning';
   const batColor = BATTERY_COLOR(drone.battery);
   const isCritical = drone.battery <= 25;
+  const isAtBase = drone.position.x === 0 && drone.position.y === 0;
+  const canRTB = drone.status !== 'charging' && drone.status !== 'returning' && !isAtBase;
 
   return (
     <div
@@ -78,12 +85,24 @@ const DroneCard: React.FC<{ drone: Drone; selected: boolean; onSelect: () => voi
           />
           <span className="font-mono text-xs font-bold text-foreground">{drone.id}</span>
         </div>
-        <span
-          className={`font-mono px-1.5 py-0.5 rounded border text-[9px] font-bold tracking-wider
-            ${STATUS_COLOR[drone.status] ?? 'text-muted-foreground'}`}
-        >
-          {STATUS_LABEL[drone.status] ?? drone.status.toUpperCase()}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {/* RTB override button */}
+          {canRTB && (
+            <button
+              onClick={e => { e.stopPropagation(); onReturnToBase(); }}
+              title="Force return to base"
+              className="font-mono text-[8px] px-1.5 py-0.5 rounded border border-drone-returning/50 text-drone-returning hover:bg-drone-returning/10 transition-colors"
+            >
+              RTB ↩
+            </button>
+          )}
+          <span
+            className={`font-mono px-1.5 py-0.5 rounded border text-[9px] font-bold tracking-wider
+              ${STATUS_COLOR[drone.status] ?? 'text-muted-foreground'}`}
+          >
+            {STATUS_LABEL[drone.status] ?? drone.status.toUpperCase()}
+          </span>
+        </div>
       </div>
 
       {/* Battery bar */}
@@ -94,7 +113,7 @@ const DroneCard: React.FC<{ drone: Drone; selected: boolean; onSelect: () => voi
             className={`font-mono text-[10px] font-bold ${isCritical ? 'battery-critical' : ''}`}
             style={{ color: batColor }}
           >
-            {drone.battery}%
+            {Math.round(drone.battery)}%
           </span>
         </div>
         <div className="h-1.5 bg-secondary rounded-full overflow-hidden">

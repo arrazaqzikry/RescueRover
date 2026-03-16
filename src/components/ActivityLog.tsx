@@ -13,19 +13,37 @@ const LEVEL_STYLE: Record<LogLevel, string> = {
   info:    'text-slate-300',
   agent:   'text-cyan-300',
   action:  'text-blue-300',
-  detect:  'text-rescue-green font-bold',
+  detect:  'text-fuchsia-300 font-bold',
   warn:    'text-alert-amber',
   success: 'text-rescue-green font-bold',
 };
 
-const LEVEL_PREFIX: Record<LogLevel, string> = {
-  info:    '  ',
-  agent:   '◈ ',
-  action:  '→ ',
-  detect:  '★ ',
-  warn:    '! ',
-  success: '✓ ',
+const LEVEL_TAG: Record<LogLevel, string> = {
+  info:    'INFO',
+  agent:   'AGENT',
+  action:  'ACTION',
+  detect:  'DETECT',
+  warn:    'WARN',
+  success: 'SUCCESS',
 };
+
+const TAG_STYLE: Record<LogLevel, string> = {
+  info:    'text-slate-400 border-slate-600',
+  agent:   'text-cyan-400 border-cyan-800',
+  action:  'text-blue-400 border-blue-800',
+  detect:  'text-fuchsia-400 border-fuchsia-700',
+  warn:    'text-alert-amber border-alert-amber/40',
+  success: 'text-rescue-green border-rescue-green/40',
+};
+
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts);
+  return [
+    String(d.getHours()).padStart(2, '0'),
+    String(d.getMinutes()).padStart(2, '0'),
+    String(d.getSeconds()).padStart(2, '0'),
+  ].join(':');
+}
 
 export const ActivityLog: React.FC<Props> = ({ entries }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -50,7 +68,7 @@ export const ActivityLog: React.FC<Props> = ({ entries }) => {
           <div className="w-2 h-2 rounded-full bg-rescue-green/70" />
         </div>
         <span className="font-mono text-[10px] text-muted-foreground tracking-widest ml-1">
-          COMMAND AGENT — CHAIN-OF-THOUGHT LOG
+          COMMAND AGENT — ACTIVITY LOG
         </span>
         <span className="ml-auto font-mono text-[9px] text-muted-foreground">
           {entries.length} entries
@@ -64,16 +82,24 @@ export const ActivityLog: React.FC<Props> = ({ entries }) => {
             Awaiting mission deployment...
           </div>
         )}
-        {entries.map((entry, i) => (
+        {entries.map((entry) => (
           <div
             key={entry.id}
             className={`log-entry flex gap-1.5 hover:bg-white/3 px-1 py-0.5 rounded ${LEVEL_STYLE[entry.level]}`}
-            style={{ animationDelay: `${(i % 10) * 10}ms` }}
           >
-            <span className="shrink-0 text-muted-foreground/50 w-8">
-              {String(entry.tick).padStart(3, '0')}
+            {/* Timestamp */}
+            <span className="shrink-0 text-muted-foreground/60 w-14">
+              {formatTimestamp(entry.timestamp)}
             </span>
-            <span className="shrink-0">{LEVEL_PREFIX[entry.level]}</span>
+            {/* Level tag */}
+            <span
+              className={`shrink-0 w-13 border px-1 rounded text-[8px] flex items-center justify-center font-bold tracking-widest
+                ${TAG_STYLE[entry.level]}`}
+              style={{ minWidth: '46px', maxWidth: '46px' }}
+            >
+              {LEVEL_TAG[entry.level]}
+            </span>
+            {/* Message */}
             <span className="break-all">{entry.message}</span>
           </div>
         ))}
