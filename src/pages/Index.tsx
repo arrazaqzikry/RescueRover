@@ -15,7 +15,7 @@ import { ConfigPanel } from '../components/ConfigPanel';
 const DEFAULT_CONFIG: SimulationConfig = {
   gridSize: 20,
   totalSurvivors: 5,
-  maxDrones: 8,
+  maxDrones: 10,
   droneCount: 3,
   obstacleCount: 15,
   tickIntervalMs: 1000,
