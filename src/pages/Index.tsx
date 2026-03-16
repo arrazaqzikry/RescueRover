@@ -4,7 +4,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Drone, SimulationConfig, SimulationState } from '../types/simulation';
-import { createInitialState, mcp_registerDrone } from '../simulation/mcpServer';
+import { createInitialState, mcp_registerDrone, getSectorBounds, makeId } from '../simulation/mcpServer';
 import { commandAgentTick } from '../simulation/commandAgent';
 import { MissionHeader } from '../components/MissionHeader';
 import { SimulationGrid } from '../components/SimulationGrid';
