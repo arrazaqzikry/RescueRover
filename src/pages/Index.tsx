@@ -42,7 +42,14 @@ const Index: React.FC = () => {
 
   // ── Controls ──────────────────────────────────────────────────────────────
   const handleStart = useCallback(() => {
-    setState(prev => ({ ...prev, running: true }));
+    setState(prev => {
+      const ts = Date.now();
+      const initLog = {
+        id: makeId(), tick: 0, timestamp: ts, level: 'info' as const,
+        message: 'System initialized. Command Agent online. Awaiting drone deployment.',
+      };
+      return { ...prev, running: true, log: [...prev.log, initLog] };
+    });
   }, []);
 
   const handleStop = useCallback(() => {
@@ -60,8 +67,27 @@ const Index: React.FC = () => {
       const idx = prev.drones.length;
       const num = String(idx + 1).padStart(2, '0');
       const id = `UAV-${num}`;
-      const { state: newState } = mcp_registerDrone(prev, { drone_id: id, name: id });
-      return newState;
+      const { state: newState, response } = mcp_registerDrone(prev, { drone_id: id, name: id });
+      if (!response.success) return prev;
+
+      const tick = prev.stats.tick;
+      const ts = Date.now();
+      const newCount = newState.drones.length;
+      const bounds = getSectorBounds(response.drone.sector, prev.config.gridSize);
+      const sectorLabel = `[col ${bounds.minX}–${bounds.maxX}, row ${bounds.minY}–${bounds.maxY}]`;
+      const uncovered = newState.grid.flat().filter(c => !c.scanned && !c.hasObstacle).length;
+
+      const deployLog = {
+        id: makeId(), tick, timestamp: ts, level: 'agent' as const,
+        message: `[Command Agent] ${id} detected on network. Rebalancing sector assignments across ${newCount} drone${newCount > 1 ? 's' : ''}.`,
+        droneId: id,
+      };
+      const sectorLog = {
+        id: makeId(), tick, timestamp: ts + 1, level: 'info' as const,
+        message: `${id} deployed to base (0,0). Assigned Sector ${sectorLabel}. Battery 100% → ${uncovered} uncovered cells.`,
+        droneId: id,
+      };
+      return { ...newState, log: [...newState.log, deployLog, sectorLog] };
     });
   }, []);
 
