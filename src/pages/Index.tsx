@@ -3,7 +3,7 @@
 // ===================================================
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { SimulationConfig, SimulationState } from '../types/simulation';
+import type { Drone, SimulationConfig, SimulationState } from '../types/simulation';
 import { createInitialState, mcp_registerDrone } from '../simulation/mcpServer';
 import { commandAgentTick } from '../simulation/commandAgent';
 import { MissionHeader } from '../components/MissionHeader';
@@ -129,7 +129,7 @@ const Index: React.FC = () => {
             />
           </div>
 
-          {/* Bottom — Activity Log (bottom portion of left panel) */}
+          {/* Bottom — Activity Log */}
           <div className="h-40 border-t border-border shrink-0">
             <ActivityLog entries={state.log} />
           </div>
@@ -182,7 +182,7 @@ const Index: React.FC = () => {
           {/* Selected drone detail */}
           {state.selectedDroneId && (
             <SelectedDroneDetail
-              drone={state.drones.find(d => d.id === state.selectedDroneId)!}
+              drone={state.drones.find(d => d.id === state.selectedDroneId)}
             />
           )}
         </div>
@@ -261,9 +261,6 @@ const SelectedDroneDetail: React.FC<{ drone: Drone | undefined }> = ({ drone }) 
     </div>
   );
 };
-
-// Fix: import Drone type for SelectedDroneDetail
-import type { Drone } from '../types/simulation';
 
 const MiniStat2: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div>
