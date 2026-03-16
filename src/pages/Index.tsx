@@ -15,7 +15,7 @@ import { ConfigPanel } from '../components/ConfigPanel';
 const DEFAULT_CONFIG: SimulationConfig = {
   gridSize: 20,
   totalSurvivors: 5,
-  maxDrones: 8,
+  maxDrones: 10,
   droneCount: 3,
   obstacleCount: 15,
   tickIntervalMs: 1000,
@@ -103,8 +103,8 @@ const Index: React.FC = () => {
               ZONE MAP — 20×20
             </span>
             <div className="flex items-center gap-3">
-              <Legend color="#F1F5F9" label="Unexplored" />
-              <Legend color="#FFFFFF" border label="Scanned" />
+              <Legend color="hsl(220,20%,92%)" label="Unexplored" />
+              <Legend color="hsl(196,80%,88%)" border label="Visited" />
               <Legend color="#10B981" label="Survivor" />
               <Legend color="#EF4444" label="Obstacle" />
               <button

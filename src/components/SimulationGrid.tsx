@@ -44,7 +44,7 @@ export const SimulationGrid: React.FC<Props> = ({
     selectedDrone.pathQueue.forEach(p => pathSet.add(`${p.x},${p.y}`));
   }
 
-  const CELL_SIZE = Math.floor(580 / gridSize); // dynamic cell size
+  const CELL_SIZE = Math.floor(580 / gridSize);
 
   return (
     <div
@@ -81,25 +81,34 @@ export const SimulationGrid: React.FC<Props> = ({
           const isBase = gx === 0 && gy === 0;
           const isScanning = drone?.status === 'scanning';
 
-          let bg = cell.scanned
-            ? (cell.hasObstacle ? '#3B1C1C' : '#FFFFFF')
-            : '#F1F5F9';
-          if (isBase) bg = '#1E293B';
-          if (isPath) bg = 'rgba(34,211,238,0.15)';
+          // ── Cell background colour ──
+          // Unscanned: light slate | Scanned: distinct teal-tinted blue | Obstacle: dark
+          let bg: string;
+          if (cell.hasObstacle) {
+            bg = '#3B1C1C';
+          } else if (isBase) {
+            bg = '#1E293B';
+          } else if (isPath) {
+            bg = 'rgba(34,211,238,0.18)';
+          } else if (cell.scanned) {
+            bg = 'hsl(196 80% 88%)'; // distinct teal-blue tint for visited cells
+          } else {
+            bg = 'hsl(220 20% 92%)'; // light slate for unexplored
+          }
 
           return (
             <div
               key={key}
-              className={`absolute border border-gray-200/50 ${isScanning ? 'cell-scanning' : ''}`}
+              className={`absolute ${isScanning ? 'cell-scanning' : ''}`}
               style={{
                 left: gx * CELL_SIZE,
                 top: gy * CELL_SIZE,
                 width: CELL_SIZE,
                 height: CELL_SIZE,
                 backgroundColor: bg,
-                borderColor: cell.scanned ? '#CBD5E1' : '#E2E8F0',
+                border: `1px solid ${cell.scanned && !cell.hasObstacle ? 'hsl(196 60% 75%)' : 'hsl(220 15% 85%)'}`,
                 boxSizing: 'border-box',
-                transition: 'background-color 0.15s',
+                transition: 'background-color 0.2s',
               }}
               onClick={() => drone ? onSelectDrone(drone.id === selectedDroneId ? null : drone.id) : undefined}
             >

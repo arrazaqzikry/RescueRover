@@ -28,7 +28,7 @@ export const ConfigPanel: React.FC<Props> = ({ config, onChange, onClose }) => {
           <ConfigSlider
             label="INITIAL DRONES"
             value={config.droneCount}
-            min={1} max={8}
+            min={1} max={10}
             onChange={v => update('droneCount', v)}
           />
           <ConfigSlider
@@ -61,7 +61,7 @@ export const ConfigPanel: React.FC<Props> = ({ config, onChange, onClose }) => {
           onClick={onClose}
           className="mt-4 w-full py-1.5 font-mono text-xs bg-rescue-green text-primary-foreground rounded hover:opacity-90 transition-opacity"
         >
-          APPLY & CLOSE
+          APPLY & RESET SIMULATION
         </button>
       </div>
     </div>
