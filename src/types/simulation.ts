@@ -20,6 +20,7 @@ export interface Drone {
   pathQueue: Position[];
   cellsScanned: number;
   color: string;       // CSS color token class
+  forceReturn?: boolean; // manual RTB override
 }
 
 export interface Survivor {
@@ -63,8 +64,8 @@ export interface MissionStats {
 }
 
 export interface SimulationConfig {
-  gridSize: number;          // default 20
-  totalSurvivors: number;    // default 5
+  gridSize: number;          // default 20, max 30
+  totalSurvivors: number;    // randomised 8-15 at init
   maxDrones: number;         // default 10
   droneCount: number;        // initial drones 1-10
   obstacleCount: number;     // random obstacles

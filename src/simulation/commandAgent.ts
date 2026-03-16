@@ -42,13 +42,13 @@ export function commandAgentTick(state: SimulationState): SimulationState {
     newLogs.push(...result.logs);
   }
 
-  // ── STEP 3: Periodic agent report (every 10 ticks) ─────────────────────
-  if (tick % 10 === 0) {
+  // ── STEP 3: Periodic agent report (every 15 ticks) ─────────────────────
+  if (tick % 15 === 0) {
     const coverage = currentState.stats.coverage;
     const survivors = currentState.stats.survivorsFound;
     const total = currentState.stats.totalSurvivors;
     newLogs.push(makeLog(tick, 'agent',
-      `[REPORT T${tick}] Coverage: ${coverage}% | Survivors: ${survivors}/${total} | ` +
+      `[Command Agent] T${tick} Status — Coverage: ${coverage}% | Survivors: ${survivors}/${total} | ` +
       `Active: ${drones.filter(d => d.status !== 'charging').length}/${drones.length} drones`
     ));
   }
@@ -56,15 +56,15 @@ export function commandAgentTick(state: SimulationState): SimulationState {
   // ── STEP 4: Check if all non-obstacle cells are now scanned ────────────
   if (currentState.stats.missionComplete) {
     newLogs.push(makeLog(tick, 'success',
-      `🎯 MISSION COMPLETE — All cells visited in ${tick} ticks! Coverage: ${currentState.stats.coverage}% | ` +
-      `Survivors found: ${currentState.stats.survivorsFound}/${currentState.stats.totalSurvivors}. Recalling all drones.`
+      `🎯 MISSION COMPLETE — All ${currentState.config.gridSize}×${currentState.config.gridSize} cells visited in ${tick} ticks! ` +
+      `Coverage: ${currentState.stats.coverage}% | Survivors found: ${currentState.stats.survivorsFound}/${currentState.stats.totalSurvivors}. Recalling all drones to base.`
     ));
     // Begin recalling all drones to base
     currentState = recallAllDrones(currentState, tick, newLogs);
   }
 
-  // Keep log to last 300 entries — but only meaningful ones
-  const allLogs = [...currentState.log, ...newLogs].slice(-300);
+  // Keep log to last 400 entries
+  const allLogs = [...currentState.log, ...newLogs].slice(-400);
 
   return { ...currentState, log: allLogs };
 }
@@ -102,7 +102,7 @@ function handleMissionComplete(state: SimulationState): SimulationState {
     d => d.status === 'charging' || (d.position.x === BASE.x && d.position.y === BASE.y)
   );
   if (allHome) {
-    return { ...currentState, running: false, log: [...currentState.log, ...newLogs].slice(-300) };
+    return { ...currentState, running: false, log: [...currentState.log, ...newLogs].slice(-400) };
   }
 
   for (const drone of currentState.drones) {
@@ -115,7 +115,7 @@ function handleMissionComplete(state: SimulationState): SimulationState {
       continue;
     }
 
-    // Ensure path to base
+    // Ensure path to base — always keep moving towards base visibly
     let currentDrone = currentState.drones.find(d => d.id === drone.id)!;
     if (currentDrone.pathQueue.length === 0 || currentDrone.status !== 'returning') {
       const returnPath = planPath(currentDrone.position, BASE, currentState.grid, currentState.config.gridSize);
@@ -125,10 +125,11 @@ function handleMissionComplete(state: SimulationState): SimulationState {
       currentState = { ...currentState, drones: updatedDrones };
     }
 
+    // Move one step per tick — this makes return movement visible on grid
     currentState = moveOneStep(currentState, drone.id, BASE, tick, newLogs, true);
   }
 
-  const allLogs = [...currentState.log, ...newLogs].slice(-300);
+  const allLogs = [...currentState.log, ...newLogs].slice(-400);
   return { ...currentState, log: allLogs };
 }
 
@@ -145,14 +146,31 @@ function processDrone(
   const { config } = state;
   const BASE: Position = { x: 0, y: 0 };
 
+  // ── Check if manually forced to return ──────────────────────────────────
+  const freshDrone = currentState.drones.find(d => d.id === drone.id)!;
+  if (freshDrone.forceReturn && freshDrone.status !== 'returning' && freshDrone.status !== 'charging') {
+    const returnPath = planPath(freshDrone.position, BASE, currentState.grid, config.gridSize);
+    const dIdx = currentState.drones.findIndex(d => d.id === drone.id);
+    const updatedDrones = [...currentState.drones];
+    updatedDrones[dIdx] = { ...freshDrone, status: 'returning', pathQueue: returnPath, forceReturn: false };
+    currentState = { ...currentState, drones: updatedDrones };
+    logs.push(makeLog(tick, 'warn',
+      `⚠ ${drone.id} MANUAL RECALL — operator ordered return to base.`,
+      drone.id
+    ));
+    return { state: currentState, logs };
+  }
+
   // ── Charging drone at base ──────────────────────────────────────────────
   if (drone.status === 'charging') {
     currentState = mcp_chargeDrone(currentState, drone.id);
     const charged = currentState.drones.find(d => d.id === drone.id)!;
     if (charged.status === 'idle') {
-      // Only log when fully charged and ready
+      // Compute uncovered cells for CoT
+      const uncovered = currentState.grid.flat().filter(c => !c.scanned && !c.hasObstacle).length;
       logs.push(makeLog(tick, 'agent',
-        `[COT] ${drone.id} fully charged (${charged.battery}%). Deploying to sector ${['NW','NE','SW','SE'][charged.sector % 4]}.`,
+        `[Command Agent] ${drone.id} fully charged (${charged.battery}%). ` +
+        `Deploying to sector ${['NW','NE','SW','SE'][charged.sector % 4]}. Battery 100% → targeting ${uncovered} uncovered cells.`,
         drone.id
       ));
     }
@@ -162,7 +180,7 @@ function processDrone(
   // ── Low battery → return to base ───────────────────────────────────────
   if (drone.battery <= 25 && drone.status !== 'returning') {
     logs.push(makeLog(tick, 'warn',
-      `⚠️ ${drone.id} battery critical (${Math.round(drone.battery)}%). Returning to base for recharge.`,
+      `⚠ ${drone.id} CRITICAL BATTERY (${Math.round(drone.battery)}%). Aborting mission — returning to base.`,
       drone.id
     ));
     const dIdx = currentState.drones.findIndex(d => d.id === drone.id);
@@ -181,8 +199,12 @@ function processDrone(
       const updatedDrones = [...currentState.drones];
       updatedDrones[dIdx] = { ...currentDrone, status: 'charging' };
       currentState = { ...currentState, drones: updatedDrones };
-      logs.push(makeLog(tick, 'info', `🏠 ${drone.id} arrived at base. Charging (${Math.round(currentDrone.battery)}%).`, drone.id));
+      logs.push(makeLog(tick, 'warn',
+        `Drone ${drone.id} docked at base. Initiating recharge sequence.`,
+        drone.id
+      ));
     } else {
+      // Move one step — visible on grid
       currentState = moveOneStep(currentState, drone.id, BASE, tick, logs, true);
     }
     return { state: currentState, logs };
@@ -198,20 +220,22 @@ function processDrone(
       updatedDrones[dIdx] = { ...currentDrone, pathQueue: path, status: 'navigating' };
       currentState = { ...currentState, drones: updatedDrones };
 
-      // CoT reasoning log when planning new route
-      const sectorName = ['NW', 'NE', 'SW', 'SE'][currentDrone.sector % 4];
-      logs.push(makeLog(tick, 'agent',
-        `[COT] ${drone.id} bat:${Math.round(drone.battery)}% → new target (${target.x},${target.y}) sector ${sectorName}. ` +
-        `${path.length} steps. ${drone.battery > 50 ? 'High battery.' : 'Moderate range.'}`,
-        drone.id
-      ));
+      // CoT reasoning log when planning new route (only occasionally to reduce noise)
+      if (Math.random() < 0.35 || drone.battery < 50) {
+        const sectorName = ['NW', 'NE', 'SW', 'SE'][currentDrone.sector % 4];
+        const uncovered = currentState.grid.flat().filter(c => !c.scanned && !c.hasObstacle).length;
+        logs.push(makeLog(tick, 'agent',
+          `[Command Agent] ${drone.id} assigned Sector [${sectorName}]. Battery ${Math.round(drone.battery)}% → targeting ${uncovered} uncovered cells.`,
+          drone.id
+        ));
+      }
     }
     return { state: currentState, logs };
   }
 
-  // ── Move one step (silent — only log notable events) ───────────────────
+  // ── Move one step (silent movement — no log per step) ──────────────────
   const beforeMove = currentState.drones.find(d => d.id === drone.id)!;
-  currentState = moveOneStep(currentState, drone.id, beforeMove.pathQueue[0] ?? BASE, tick, logs, false);
+  currentState = moveOneStep(currentState, drone.id, beforeMove.pathQueue[0] ?? BASE, tick, logs, true);
 
   // ── Thermal scan at new position ────────────────────────────────────────
   const { state: scannedState, response } = mcp_thermalScan(currentState, { drone_id: drone.id });
@@ -221,17 +245,19 @@ function processDrone(
   const pos = afterMove.position;
 
   if (response.thermal_noise) {
-    logs.push(makeLog(tick, 'warn',
-      `📡 ${drone.id} thermal NOISE at (${pos.x},${pos.y}) — scan unreliable.`,
-      drone.id
-    ));
+    // Only log thermal noise occasionally to avoid spam
+    if (Math.random() < 0.2) {
+      logs.push(makeLog(tick, 'warn',
+        `📡 ${drone.id} thermal NOISE at (${pos.x},${pos.y}) — scan unreliable.`,
+        drone.id
+      ));
+    }
   } else if (response.survivor_detected && response.survivor_id) {
     logs.push(makeLog(tick, 'detect',
-      `🟢 SURVIVOR DETECTED! ${drone.id} found ${response.survivor_id} at (${pos.x},${pos.y})!`,
+      `🚨 Drone ${drone.id} THERMAL SIGNATURE DETECTED! Survivor ${response.survivor_id} at (${pos.x},${pos.y}). Marking position.`,
       drone.id
     ));
   }
-  // Skip logging routine "clear" scans entirely
 
   return { state: currentState, logs };
 }
