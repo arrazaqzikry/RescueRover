@@ -9,13 +9,20 @@ import {
 } from '../types/simulation';
 import {
   mcp_discoverDrones, mcp_moveTo, mcp_thermalScan, mcp_chargeDrone,
-  findBestTarget, planPath, makeId
+  findBestTarget, planPath, makeId, getSectorBounds
 } from './mcpServer';
 
 // ─── Logging helper ──────────────────────────────────────────────────────────
 
 function makeLog(tick: number, level: LogLevel, message: string, droneId?: string): LogEntry {
   return { id: makeId(), tick, timestamp: Date.now(), level, message, droneId };
+}
+
+// ─── Battery thresholds already logged (avoid duplicate warns) ───────────────
+const loggedBatteryWarnings = new Set<string>(); // `${droneId}-${threshold}`
+
+function batteryThresholdKey(droneId: string, pct: number) {
+  return `${droneId}-${pct}`;
 }
 
 // ─── Main agent tick ─────────────────────────────────────────────────────────
