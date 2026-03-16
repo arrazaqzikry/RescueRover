@@ -65,8 +65,8 @@ export interface MissionStats {
 export interface SimulationConfig {
   gridSize: number;          // default 20
   totalSurvivors: number;    // default 5
-  maxDrones: number;         // default 8
-  droneCount: number;        // initial drones
+  maxDrones: number;         // default 10
+  droneCount: number;        // initial drones 1-10
   obstacleCount: number;     // random obstacles
   tickIntervalMs: number;    // default 1000
   thermalNoiseChance: number;// 0-1 chance of missed scan
