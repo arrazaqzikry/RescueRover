@@ -1,7 +1,5 @@
 # Rescue Rover Ops – Disaster Response Drone Simulation
 
-![Project Logo](./assets/logo.png) *(optional)*
-
 ## Overview
 
 **Rescue Rover Ops** is an interactive drone simulation 
