@@ -7,6 +7,8 @@ import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import RoleSelector from "@/pages/RoleSelector.tsx";
 import DroneContributor from "@/pages/DroneContributor.tsx";
+import RegisterDrone from "@/pages/DroneContributor.tsx";
+import RegisterDisaster from "@/pages/RegisterDisaster.tsx";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +22,7 @@ const App = () => (
           <Route path="/" element={<RoleSelector />} />
           <Route path="/Index" element={<Index />} />
           <Route path="/User" element={<DroneContributor />} />
+          <Route path="/Disaster" element={<RegisterDisaster />} />
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
