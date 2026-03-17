@@ -22,6 +22,19 @@ function formatTime(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
+const backButton: React.CSSProperties = {
+
+  top: "2px",
+  left: "10px",
+  textDecoration: "none",
+  color: "white",
+  fontWeight: 200,
+  fontSize: "16px",
+  padding: "3px 10px",
+  borderRadius: "6px",
+  background: "rgba(37,150,190,0.3)"
+};
+
 export const MissionHeader: React.FC<Props> = ({
   stats, running, onStart, onStop, onReset, onAddDrone, droneCount, maxDrones
 }) => {
@@ -30,13 +43,23 @@ export const MissionHeader: React.FC<Props> = ({
   return (
     <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-card shrink-0 h-12">
       {/* Branding */}
+
+
       <div className="flex items-center gap-3">
+
         <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            <a href="/" style={backButton}>
+              ←
+            </a>
+          </div>
           <div className="w-2 h-2 rounded-full bg-rescue-green animate-pulse" />
+
           <span className="font-mono text-xs font-bold text-rescue-green tracking-widest uppercase">
             DRCC
           </span>
         </div>
+
         <span className="text-muted-foreground text-xs font-mono">|</span>
         <span className="font-sans text-xs text-muted-foreground">Disaster Response Command Center</span>
       </div>

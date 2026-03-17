@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import RoleSelector from "@/pages/RoleSelector.tsx";
+import DroneContributor from "@/pages/DroneContributor.tsx";
 
 const queryClient = new QueryClient();
 
@@ -15,7 +17,10 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<RoleSelector />} />
+          <Route path="/Index" element={<Index />} />
+          <Route path="/User" element={<DroneContributor />} />
+
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

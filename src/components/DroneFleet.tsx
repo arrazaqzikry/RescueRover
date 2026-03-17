@@ -132,8 +132,7 @@ const DroneCard: React.FC<{
       <div className="grid grid-cols-3 gap-x-2">
         <MiniStat label="POS" value={`${drone.position.x},${drone.position.y}`} />
         <MiniStat label="SCANNED" value={String(drone.cellsScanned)} />
-        <MiniStat label="SECTOR" value={['NW','NE','SW','SE'][drone.sector % 4]} />
-      </div>
+        <MiniStat label="SECTOR" value={`Sector ${drone.sector + 1}`} />      </div>
 
       {/* Detected survivors */}
       {drone.detectedSurvivorIds.length > 0 && (

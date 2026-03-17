@@ -13,7 +13,7 @@ import {
 const BASE: Position = { x: 0, y: 0 };
 
 // Battery drain per move step — very low so drones can cover the full grid
-const BATTERY_DRAIN_PER_STEP = 0.4;   // 0.4% per move step
+const BATTERY_DRAIN_PER_STEP = Math.random() * 0.6 + 0.2;
 const BATTERY_DRAIN_PER_SCAN = 0.15;  // 0.15% per scan
 
 const DRONE_COLORS = [
@@ -42,6 +42,31 @@ function randomPos(grid: GridCell[][], exclude: Set<string>, size: number): Posi
     p = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
   } while (exclude.has(posKey(p)) || grid[p.y][p.x].hasObstacle);
   return p;
+}
+
+function unscannedNeighbors(x: number, y: number, grid: GridCell[][]): number {
+  const dirs = [
+    { dx: 0, dy: 1 },
+    { dx: 0, dy: -1 },
+    { dx: 1, dy: 0 },
+    { dx: -1, dy: 0 },
+    { dx: 1, dy: 1 },
+    { dx: 1, dy: -1 },
+    { dx: -1, dy: 1 },
+    { dx: -1, dy: -1 },
+  ];
+
+  let count = 0;
+  for (const d of dirs) {
+    const nx = x + d.dx;
+    const ny = y + d.dy;
+    if (nx >= 0 && ny >= 0 && ny < grid.length && nx < grid.length) {
+      if (!grid[ny][nx].scanned && !grid[ny][nx].hasObstacle) {
+        count++;
+      }
+    }
+  }
+  return count;
 }
 
 // ─── Grid initializer ───────────────────────────────────────────────────────
@@ -115,15 +140,15 @@ export function createInitialState(config: SimulationConfig): SimulationState {
   };
 }
 
-function makeDrone(index: number, _total: number): Drone {
+function makeDrone(index: number, totalDrones: number): Drone {
   const num = String(index + 1).padStart(2, '0');
   return {
     id: `UAV-${num}`,
     name: `UAV-${num}`,
     position: { ...BASE },
-    battery: 100,
+    battery: Math.floor(Math.random() * 26) + 75,
     status: 'idle',
-    sector: index % 4,
+    sector: index % totalDrones,
     detectedSurvivorIds: [],
     pathQueue: [],
     cellsScanned: 0,
@@ -150,7 +175,7 @@ export function mcp_registerDrone(
     position: { ...BASE },
     battery: 100,
     status: 'idle',
-    sector: idx % 4,
+    sector: idx ,
     detectedSurvivorIds: [],
     pathQueue: [],
     cellsScanned: 0,
@@ -364,15 +389,22 @@ export function planPath(
 
 // ─── Sector helpers ──────────────────────────────────────────────────────────
 
-export function getSectorBounds(sector: number, size: number): { minX: number; maxX: number; minY: number; maxY: number } {
-  const half = Math.floor(size / 2);
-  switch (sector % 4) {
-    case 0: return { minX: 0, maxX: half - 1, minY: 0, maxY: half - 1 };
-    case 1: return { minX: half, maxX: size - 1, minY: 0, maxY: half - 1 };
-    case 2: return { minX: 0, maxX: half - 1, minY: half, maxY: size - 1 };
-    case 3: return { minX: half, maxX: size - 1, minY: half, maxY: size - 1 };
-    default: return { minX: 0, maxX: size - 1, minY: 0, maxY: size - 1 };
-  }
+export function getSectorBounds(sector: number, numDrones: number, size: number) {
+  const cols = Math.ceil(Math.sqrt(numDrones));
+  const rows = Math.ceil(numDrones / cols);
+
+  const sectorWidth = Math.floor(size / cols);
+  const sectorHeight = Math.floor(size / rows);
+
+  const col = sector % cols;
+  const row = Math.floor(sector / cols);
+
+  const minX = col * sectorWidth;
+  const maxX = col === cols - 1 ? size - 1 : (col + 1) * sectorWidth - 1;
+  const minY = row * sectorHeight;
+  const maxY = row === rows - 1 ? size - 1 : (row + 1) * sectorHeight - 1;
+
+  return { minX, maxX, minY, maxY };
 }
 
 export function findBestTarget(
@@ -386,10 +418,11 @@ export function findBestTarget(
 
   const maxRange = battery > 50 ? size * 2 : size;
 
-  const sb = getSectorBounds(drone.sector, size);
+  const sb = getSectorBounds(drone.sector, allDrones.length, size);
   const effectiveBounds = battery <= 25
-    ? { minX: 0, maxX: 4, minY: 0, maxY: 4 }
-    : sb;
+      ? { minX: Math.max(0, BASE.x-4), maxX: Math.min(size-1, BASE.x+4),
+        minY: Math.max(0, BASE.y-4), maxY: Math.min(size-1, BASE.y+4) }
+      : sb;
 
   // Cells occupied by other drones' current positions (avoid collocating)
   const occupiedByDrones = new Set<string>();
@@ -414,7 +447,11 @@ export function findBestTarget(
       const d = dist(drone.position, { x: gx, y: gy });
       if (d > maxRange) continue;
 
-      const score = d + (Math.random() * 0.5);
+      const score = d * (1 - battery / 100)  // prioritize farther for high battery
+          - 0.5 * unscannedNeighbors(gx, gy, grid)
+          + Math.random() * 0.2;       // small tie-breaker
+
+
       if (score < bestScore) {
         bestScore = score;
         bestCell = { x: gx, y: gy };

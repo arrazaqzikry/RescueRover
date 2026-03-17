@@ -61,6 +61,6 @@ npm run dev
                                                │ REST API
                                        ┌───────┴──────────┐
                                        │  React Dashboard │
-                                       │  (Lovable/Vite)  │
+                                       │      (Vite)
                                        └──────────────────┘
 ```

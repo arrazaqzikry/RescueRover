@@ -114,6 +114,7 @@ function handleMissionComplete(state: SimulationState): SimulationState {
     }
 
     let currentDrone = currentState.drones.find(d => d.id === drone.id)!;
+
     if (currentDrone.pathQueue.length === 0 || currentDrone.status !== 'returning') {
       const returnPath = planPath(currentDrone.position, BASE, currentState.grid, currentState.config.gridSize);
       const dIdx = currentState.drones.findIndex(d => d.id === drone.id);
@@ -130,6 +131,18 @@ function handleMissionComplete(state: SimulationState): SimulationState {
 }
 
 // ─── Per-drone processing ────────────────────────────────────────────────────
+function getAllSectors(numDrones: number, gridSize: number) {
+  return Array.from({ length: numDrones }, (_, i) => {
+    const bounds = getSectorBounds(i, numDrones, gridSize);
+    return { sector: i, bounds };
+  });
+}
+function sectorDistanceFromBase(sectorBounds: { minX: number; minY: number; maxX: number; maxY: number }) {
+  // Use center of sector
+  const cx = (sectorBounds.minX + sectorBounds.maxX) / 2;
+  const cy = (sectorBounds.minY + sectorBounds.maxY) / 2;
+  return Math.sqrt(cx*cx + cy*cy);
+}
 
 function processDrone(
   state: SimulationState,

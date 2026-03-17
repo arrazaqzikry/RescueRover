@@ -18,17 +18,17 @@ interface Props {
 const STATUS_COLORS: Record<string, string> = {
   idle:        '#4A9EF8',
   navigating:  '#22D3EE',
-  scanning:    '#10B981',
+  scanning:    '#0f5865',
   returning:   '#F59E0B',
-  charging:    '#A78BFA',
+  charging:    '#54ff00',
 };
 
 const STATUS_BORDER: Record<string, string> = {
-  idle:        '#2563EB',
-  navigating:  '#0891B2',
-  scanning:    '#059669',
+  idle:        '#4A9EF8',
+  navigating:  '#22D3EE',
+  scanning:    '#0f5865',
   returning:   '#D97706',
-  charging:    '#7C3AED',
+  charging:    '#54ff00',
 };
 
 // Unique hot-pink/magenta for survivors — clearly distinct from all other elements
@@ -96,7 +96,7 @@ export const SimulationGrid: React.FC<Props> = ({
           } else if (isPath) {
             bg = 'rgba(34,211,238,0.18)';
           } else if (cell.scanned) {
-            bg = 'hsl(196 80% 88%)';
+            bg = 'hsl(196 80% 38%)';
           } else {
             bg = 'hsl(220 20% 92%)';
           }

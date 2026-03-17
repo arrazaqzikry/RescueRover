@@ -117,7 +117,10 @@ const Index: React.FC = () => {
   }, [config]);
 
   return (
+
     <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground">
+
+
       {/* Header */}
       <MissionHeader
         stats={state.stats}
@@ -132,16 +135,20 @@ const Index: React.FC = () => {
 
       {/* Main workspace */}
       <div className="flex flex-1 overflow-hidden">
+
+
         {/* Left — Grid area (60%) */}
         <div className="flex flex-col flex-[3] min-w-0 overflow-hidden border-r border-border">
           {/* Grid panel header */}
+
           <div className="flex items-center justify-between px-4 py-1.5 border-b border-border/50 bg-card/50 shrink-0">
             <span className="font-mono text-[10px] text-muted-foreground tracking-widest">
               ZONE MAP — {state.config.gridSize}×{state.config.gridSize}
             </span>
             <div className="flex items-center gap-3">
+
               <Legend color="hsl(220,20%,92%)" label="Unexplored" />
-              <Legend color="hsl(196,80%,88%)" border label="Visited" />
+              <Legend color="hsl(196,80%,38%)" border label="Visited" />
               <Legend color="#E91E8C" label="Survivor" />
               <Legend color="#EF4444" label="Obstacle" />
               <button
@@ -154,7 +161,7 @@ const Index: React.FC = () => {
           </div>
 
           {/* Scrollable grid container */}
-          <div className="flex-1 overflow-auto p-6 flex items-start justify-start">
+          <div className="flex-1 overflow-x-auto p-7 flex justify-items-start justify-center">
             <SimulationGrid
               grid={state.grid}
               drones={state.drones}
