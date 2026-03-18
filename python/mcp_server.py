@@ -1,8 +1,3 @@
-# ===================================================
-# python/mcp_server.py
-# FastAPI MCP Server — Authoritative Drone State
-# Run: uvicorn mcp_server:app --reload --port 8000
-# ===================================================
 
 import asyncio
 import math

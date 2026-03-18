@@ -11,7 +11,7 @@ import time
 from collections import deque
 from typing import Optional
 
-MCP_BASE = "http:/localhost:8000"
+MCP_BASE = "http://localhost:8000"
 GRID_SIZE = 20
 BASE = (0, 0)
 TICK_INTERVAL = 1.0  # seconds

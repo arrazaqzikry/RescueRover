@@ -1,5 +1,29 @@
 # Rescue Rover Ops – Disaster Response Drone Simulation
 
+## Full Stack (Python MCP Server + Agent + Dashboard)
+
+### 1. Install Python deps
+```bash
+cd python
+pip install fastapi uvicorn httpx pydantic
+```
+
+### 2. Start MCP Server
+```bash
+uvicorn mcp_server:app --reload --port 8000
+```
+
+### 3. Start Command Agent (new terminal)
+```bash
+python command_agent.py
+```
+
+### 4. Open React Dashboard
+```bash
+npm run dev
+```
+
+
 ## Overview
 
 **Rescue Rover Ops** is an interactive drone simulation 
