@@ -30,7 +30,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 const BATTERY_COLOR = (bat: number): string => {
   if (bat > 75) return '#10B981';
-  if (bat > 25) return '#F59E0B';
+  if (bat > 30) return '#F59E0B';
   return '#EF4444';
 };
 
