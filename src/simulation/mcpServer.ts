@@ -13,7 +13,7 @@ import {
 const BASE: Position = { x: 0, y: 0 };
 
 // Battery drain per move step — very low so drones can cover the full grid
-const BATTERY_DRAIN_PER_STEP = Math.random() * 0.6 + 0.2;
+const BATTERY_DRAIN_PER_STEP = Math.random() * 0.3 + 0.2;
 const BATTERY_DRAIN_PER_SCAN = 0.15;  // 0.15% per scan
 
 const DRONE_COLORS = [
@@ -98,7 +98,7 @@ export function createInitialState(config: SimulationConfig): SimulationState {
   }
 
   // Randomise survivor count between 8 and 15 (unknown to user until discovered)
-  const survivorCount = 8 + Math.floor(Math.random() * 8); // 8-15
+  const survivorCount = 13 + Math.floor(Math.random() * 8); // 8-15
 
   // Place survivors (avoid base + obstacles)
   const survivors: Survivor[] = [];
@@ -146,7 +146,7 @@ function makeDrone(index: number, totalDrones: number): Drone {
     id: `UAV-${num}`,
     name: `UAV-${num}`,
     position: { ...BASE },
-    battery: Math.floor(Math.random() * 26) + 75,
+    battery: Math.floor(Math.random() * 14) + 87,
     status: 'idle',
     sector: index % totalDrones,
     detectedSurvivorIds: [],
@@ -389,93 +389,252 @@ export function planPath(
 
 // ─── Sector helpers ──────────────────────────────────────────────────────────
 
+
+// Cache for sector calculations
+const sectorBoundsCache = new Map<string, Array<{ minX: number; maxX: number; minY: number; maxY: number }>>();
+
 export function getSectorBounds(sector: number, numDrones: number, size: number) {
-  const cols = Math.ceil(Math.sqrt(numDrones));
-  const rows = Math.ceil(numDrones / cols);
+  // Check cache
+  const cacheKey = `${numDrones}-${size}`;
+  if (!sectorBoundsCache.has(cacheKey)) {
+    // Calculate all sector bounds once and cache them
+    const sectors: Array<{ minX: number; maxX: number; minY: number; maxY: number }> = [];
 
-  const sectorWidth = Math.floor(size / cols);
-  const sectorHeight = Math.floor(size / rows);
+    // Special case: 1 drone gets whole grid
+    if (numDrones === 1) {
+      sectors.push({ minX: 0, maxX: size - 1, minY: 0, maxY: size - 1 });
+    } else {
+      // For perfect squares (4, 9, 16, etc.), use square grid
+      const sqrt = Math.sqrt(numDrones);
+      const isPerfectSquare = Math.abs(sqrt - Math.floor(sqrt)) < 0.0001;
 
-  const col = sector % cols;
-  const row = Math.floor(sector / cols);
+      let cols: number;
+      let rows: number;
 
-  const minX = col * sectorWidth;
-  const maxX = col === cols - 1 ? size - 1 : (col + 1) * sectorWidth - 1;
-  const minY = row * sectorHeight;
-  const maxY = row === rows - 1 ? size - 1 : (row + 1) * sectorHeight - 1;
+      if (isPerfectSquare) {
+        // Perfect square: use sqrt × sqrt grid
+        cols = Math.floor(sqrt);
+        rows = cols;
+      } else {
+        // Find best rectangle that minimizes empty sectors
+        let bestCols = 1;
+        let bestRows = numDrones;
+        let bestEmpty = Infinity;
 
-  return { minX, maxX, minY, maxY };
+        for (let c = 1; c <= numDrones; c++) {
+          const r = Math.ceil(numDrones / c);
+          const empty = c * r - numDrones;
+
+          if (empty < bestEmpty) {
+            bestEmpty = empty;
+            bestCols = c;
+            bestRows = r;
+          } else if (empty === bestEmpty) {
+            // Prefer more square-like
+            const currentRatio = Math.abs(bestCols - bestRows);
+            const newRatio = Math.abs(c - r);
+            if (newRatio < currentRatio) {
+              bestCols = c;
+              bestRows = r;
+            }
+          }
+        }
+
+        cols = bestCols;
+        rows = bestRows;
+      }
+
+      // Calculate sector dimensions
+      const sectorWidth = Math.floor(size / cols);
+      const sectorHeight = Math.floor(size / rows);
+
+      // Create sectors for all drones
+      for (let i = 0; i < numDrones; i++) {
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+
+        // Calculate bounds with proper edge handling
+        const minX = col * sectorWidth;
+        const maxX = col === cols - 1 ? size - 1 : (col + 1) * sectorWidth - 1;
+
+        const minY = row * sectorHeight;
+        const maxY = row === rows - 1 ? size - 1 : (row + 1) * sectorHeight - 1;
+
+        sectors.push({ minX, maxX, minY, maxY });
+      }
+    }
+
+    sectorBoundsCache.set(cacheKey, sectors);
+  }
+
+  const sectors = sectorBoundsCache.get(cacheKey)!;
+  return sectors[sector] || { minX: 0, maxX: size - 1, minY: 0, maxY: size - 1 };
 }
 
 export function findBestTarget(
-  drone: Drone,
-  grid: GridCell[][],
-  config: SimulationConfig,
-  allDrones: Drone[]
+    drone: Drone,
+    grid: GridCell[][],
+    config: SimulationConfig,
+    allDrones: Drone[]
 ): Position | null {
-  const { battery } = drone;
+  const { battery, position, sector } = drone;
   const size = config.gridSize;
+  const numDrones = allDrones.length;
 
-  const maxRange = battery > 50 ? size * 2 : size;
+  // Get sector boundaries
+  const bounds = getSectorBounds(sector, numDrones, size);
 
-  const sb = getSectorBounds(drone.sector, allDrones.length, size);
-  const effectiveBounds = battery <= 25
-      ? { minX: Math.max(0, BASE.x-4), maxX: Math.min(size-1, BASE.x+4),
-        minY: Math.max(0, BASE.y-4), maxY: Math.min(size-1, BASE.y+4) }
-      : sb;
+  // Calculate effective search range based on battery
+  const maxRange = battery > 50 ? size : Math.floor(size * 0.7);
 
-  // Cells occupied by other drones' current positions (avoid collocating)
-  const occupiedByDrones = new Set<string>();
+  // Cells occupied by other drones (avoid collisions)
+  const occupied = new Set<string>();
   allDrones.forEach(d => {
     if (d.id !== drone.id) {
-      occupiedByDrones.add(posKey(d.position));
-      if (d.pathQueue.length > 0) {
-        occupiedByDrones.add(posKey(d.pathQueue[0]));
-      }
+      occupied.add(`${d.position.x},${d.position.y}`);
     }
   });
 
   let bestCell: Position | null = null;
-  let bestScore = Infinity;
+  let bestScore = -Infinity;
 
-  for (let gy = effectiveBounds.minY; gy <= effectiveBounds.maxY; gy++) {
-    for (let gx = effectiveBounds.minX; gx <= effectiveBounds.maxX; gx++) {
-      if (grid[gy][gx].scanned) continue;
-      if (grid[gy][gx].hasObstacle) continue;
-      if (occupiedByDrones.has(posKey({ x: gx, y: gy }))) continue;
+  // Priority 1: Check immediate surroundings first (8-neighbor grid)
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const x = position.x + dx;
+      const y = position.y + dy;
 
-      const d = dist(drone.position, { x: gx, y: gy });
-      if (d > maxRange) continue;
+      // Check bounds and sector
+      if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) continue;
+      if (x < 0 || x >= size || y < 0 || y >= size) continue;
 
-      const score = d * (1 - battery / 100)  // prioritize farther for high battery
-          - 0.5 * unscannedNeighbors(gx, gy, grid)
-          + Math.random() * 0.2;       // small tie-breaker
+      // Skip if already scanned, obstacle, or occupied
+      if (grid[y][x].scanned) continue;
+      if (grid[y][x].hasObstacle) continue;
+      if (occupied.has(`${x},${y}`)) continue;
 
+      // Calculate score based on:
+      // 1. Distance (closer is better)
+      // 2. Number of unscanned neighbors (cluster scanning)
+      // 3. Random factor to break ties
+      const dist = Math.abs(position.x - x) + Math.abs(position.y - y);
+      const neighbors = countUnscannedNeighbors(x, y, grid, bounds);
+      const score = (10 - dist) + (neighbors * 3) + (Math.random() * 2);
 
-      if (score < bestScore) {
+      if (score > bestScore) {
         bestScore = score;
-        bestCell = { x: gx, y: gy };
+        bestCell = { x, y };
       }
     }
   }
 
-  // If sector is fully covered, expand to any unscanned cell
-  if (!bestCell) {
-    for (let gy = 0; gy < size; gy++) {
-      for (let gx = 0; gx < size; gx++) {
-        if (grid[gy][gx].scanned) continue;
-        if (grid[gy][gx].hasObstacle) continue;
-        if (occupiedByDrones.has(posKey({ x: gx, y: gy }))) continue;
-        const d = dist(drone.position, { x: gx, y: gy });
-        if (d > maxRange) continue;
-        const score = d + (Math.random() * 0.5);
-        if (score < bestScore) {
-          bestScore = score;
-          bestCell = { x: gx, y: gy };
+  // If found a good nearby cell, return it immediately
+  if (bestCell) return bestCell;
+
+  // Priority 2: Search entire sector using spiral pattern from current position
+  const searchRadius = Math.min(maxRange, 20);
+  for (let r = 1; r <= searchRadius; r++) {
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        // Only check cells at Manhattan distance ≈ r
+        if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+
+        const x = position.x + dx;
+        const y = position.y + dy;
+
+        // Check bounds and sector
+        if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) continue;
+        if (x < 0 || x >= size || y < 0 || y >= size) continue;
+
+        if (grid[y][x].scanned) continue;
+        if (grid[y][x].hasObstacle) continue;
+        if (occupied.has(`${x},${y}`)) continue;
+
+        // Found the closest unscanned cell
+        return { x, y };
+      }
+    }
+  }
+
+  // Priority 3: Search entire sector systematically
+  // Start from current position and expand outward in a spiral
+  const centerX = position.x;
+  const centerY = position.y;
+
+  for (let r = 1; r <= maxRange; r++) {
+    // Top and bottom rows
+    for (let x = Math.max(bounds.minX, centerX - r); x <= Math.min(bounds.maxX, centerX + r); x++) {
+      // Check top row
+      const y1 = centerY - r;
+      if (y1 >= bounds.minY && y1 <= bounds.maxY) {
+        if (!grid[y1][x].scanned && !grid[y1][x].hasObstacle && !occupied.has(`${x},${y1}`)) {
+          return { x, y: y1 };
+        }
+      }
+
+      // Check bottom row
+      const y2 = centerY + r;
+      if (y2 >= bounds.minY && y2 <= bounds.maxY) {
+        if (!grid[y2][x].scanned && !grid[y2][x].hasObstacle && !occupied.has(`${x},${y2}`)) {
+          return { x, y: y2 };
+        }
+      }
+    }
+
+    // Left and right columns (excluding corners already checked)
+    for (let y = Math.max(bounds.minY, centerY - r + 1); y <= Math.min(bounds.maxY, centerY + r - 1); y++) {
+      // Check left column
+      const x1 = centerX - r;
+      if (x1 >= bounds.minX && x1 <= bounds.maxX) {
+        if (!grid[y][x1].scanned && !grid[y][x1].hasObstacle && !occupied.has(`${x1},${y}`)) {
+          return { x: x1, y };
+        }
+      }
+
+      // Check right column
+      const x2 = centerX + r;
+      if (x2 >= bounds.minX && x2 <= bounds.maxX) {
+        if (!grid[y][x2].scanned && !grid[y][x2].hasObstacle && !occupied.has(`${x2},${y}`)) {
+          return { x: x2, y };
         }
       }
     }
   }
 
-  return bestCell;
+  // Priority 4: Last resort - any unscanned cell in sector
+  for (let y = bounds.minY; y <= bounds.maxY; y++) {
+    for (let x = bounds.minX; x <= bounds.maxX; x++) {
+      if (!grid[y][x].scanned && !grid[y][x].hasObstacle && !occupied.has(`${x},${y}`)) {
+        const dist = Math.abs(position.x - x) + Math.abs(position.y - y);
+        if (dist <= maxRange) {
+          return { x, y };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// Helper function to count unscanned neighbors
+function countUnscannedNeighbors(x: number, y: number, grid: GridCell[][], bounds: { minX: number; maxX: number; minY: number; maxY: number }): number {
+  let count = 0;
+  const dirs = [
+    [0, 1], [0, -1], [1, 0], [-1, 0],  // 4-directional
+    [1, 1], [1, -1], [-1, 1], [-1, -1]  // Diagonals
+  ];
+
+  for (const [dx, dy] of dirs) {
+    const nx = x + dx;
+    const ny = y + dy;
+
+    if (nx < bounds.minX || nx > bounds.maxX || ny < bounds.minY || ny > bounds.maxY) continue;
+    if (nx < 0 || nx >= grid.length || ny < 0 || ny >= grid.length) continue;
+
+    if (!grid[ny][nx].scanned && !grid[ny][nx].hasObstacle) {
+      count++;
+    }
+  }
+
+  return count;
 }

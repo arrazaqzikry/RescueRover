@@ -13,13 +13,13 @@ import { ActivityLog } from '../components/ActivityLog';
 import { ConfigPanel } from '../components/ConfigPanel';
 
 const DEFAULT_CONFIG: SimulationConfig = {
-  gridSize: 20,
+  gridSize: 30,
   totalSurvivors: 10,
-  maxDrones: 10,
-  droneCount: 3,
+  maxDrones: 12,
+  droneCount: 4,
   obstacleCount: 15,
-  tickIntervalMs: 1000,
-  thermalNoiseChance: 0.05,
+  tickIntervalMs: 600,
+  thermalNoiseChance: 0.03,
 };
 
 // Splitter storage keys
@@ -184,8 +184,7 @@ const Index: React.FC = () => {
       const tick = prev.stats.tick;
       const ts = Date.now();
       const newCount = newState.drones.length;
-      const bounds = getSectorBounds(response.drone.sector, prev.config.gridSize);
-      const sectorLabel = `[col ${bounds.minX}–${bounds.maxX}, row ${bounds.minY}–${bounds.maxY}]`;
+      const bounds = getSectorBounds(response.drone.sector, prev.config.droneCount, prev.config.gridSize);      const sectorLabel = `[col ${bounds.minX}–${bounds.maxX}, row ${bounds.minY}–${bounds.maxY}]`;
       const uncovered = newState.grid.flat().filter(c => !c.scanned && !c.hasObstacle).length;
 
       const deployLog = {
@@ -571,11 +570,12 @@ const SelectedDroneDetail: React.FC<{ drone: Drone | undefined }> = ({ drone }) 
           </span>
         </div>
 
+
         <div className="grid grid-cols-2 gap-3">
           <MiniStat2 label="POSITION" value={`(${drone.position.x}, ${drone.position.y})`} />
           <MiniStat2 label="BATTERY" value={`${Math.round(drone.battery)}%`}
                      battery={drone.battery} />
-          <MiniStat2 label="SECTOR" value={['NORTH-WEST','NORTH-EAST','SOUTH-WEST','SOUTH-EAST'][drone.sector % 4]} />
+          <MiniStat2 label="SECTOR" value={`S-${drone.sector + 1}`} />
           <MiniStat2 label="DETECTIONS" value={String(drone.detectedSurvivorIds.length)} />
         </div>
 

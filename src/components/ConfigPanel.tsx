@@ -34,7 +34,7 @@ export const ConfigPanel: React.FC<Props> = ({ config, onChange, onClose }) => {
           <ConfigSlider
             label="GRID SIZE"
             value={config.gridSize}
-            min={10} max={30}
+            min={30} max={50}
             onChange={v => update('gridSize', v)}
           />
           <ConfigSlider
@@ -46,7 +46,7 @@ export const ConfigPanel: React.FC<Props> = ({ config, onChange, onClose }) => {
           <ConfigSlider
             label="THERMAL NOISE %"
             value={Math.round(config.thermalNoiseChance * 100)}
-            min={0} max={50}
+            min={0} max={20}
             onChange={v => update('thermalNoiseChance', v / 100)}
           />
           <ConfigSlider

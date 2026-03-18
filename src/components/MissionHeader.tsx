@@ -74,7 +74,7 @@ export const MissionHeader: React.FC<Props> = ({
         />
         <Metric
           label="SURVIVORS"
-          value={`${stats.survivorsFound}/${stats.totalSurvivors}`}
+          value={`${stats.survivorsFound}`}
           color={stats.survivorsFound === stats.totalSurvivors ? 'text-rescue-green' : 'text-foreground'}
         />
         <Metric label="FLEET" value={`${droneCount}/${maxDrones}`} />
