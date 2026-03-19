@@ -67,18 +67,8 @@ export const MissionHeader: React.FC<Props> = ({
       {/* Stats */}
       <div className="flex items-center gap-6">
         <Metric label="TICK" value={`#${stats.tick}`} />
-        <Metric
-          label="COVERAGE"
-          value={`${stats.coverage}%`}
-          color={stats.coverage >= 80 ? 'text-rescue-green' : stats.coverage >= 40 ? 'text-alert-amber' : 'text-foreground'}
-        />
-        <Metric
-          label="SURVIVORS"
-          value={`${stats.survivorsFound}`}
-          color={stats.survivorsFound === stats.totalSurvivors ? 'text-rescue-green' : 'text-foreground'}
-        />
-        <Metric label="FLEET" value={`${droneCount}/${maxDrones}`} />
-        <Metric label="ELAPSED" value={formatTime(elapsed)} />
+        <Metric label="DRONES DEPLOYED" value={`${droneCount}/${maxDrones}`} />
+        <Metric label="ELAPSED TIME" value={formatTime(elapsed)} />
 
         {stats.missionComplete && (
           <span className="font-mono text-xs font-bold text-rescue-green bg-rescue-green/10 border border-rescue-green/30 px-2 py-0.5 rounded">

@@ -404,7 +404,6 @@ const Index: React.FC = () => {
               <StatTile
                   label="SURVIVORS FOUND"
                   value={`${state.stats.survivorsFound}`}
-                  sub={`/ ${state.stats.totalSurvivors}`}
                   color={state.stats.survivorsFound === state.stats.totalSurvivors ? '#10B981' : undefined}
                   icon={<SurvivorIcon />}
               />
